@@ -1,0 +1,40 @@
+name: rebuild
+
+on:
+  push:
+    branches: [main]
+    paths: ["book/**", "build.py", "make_pdf.py", "README.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: 安装 PDF 依赖
+        run: pip install reportlab
+      - name: 安装中文字体
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk fonts-wqy-microhei
+      - name: 查看已装中文字体（调试）
+        run: (fc-list :lang=zh family file | head -20) || find /usr/share/fonts -iname '*cjk*' -o -iname '*wqy*' | head -20
+      - name: 生成单文件阅读页
+        run: python build.py -o index.html
+      - name: 生成 PDF
+        run: python make_pdf.py -o how-to-exercise-better.pdf
+      - name: 有变化才提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot@users.noreply.github.com]"
+          git add index.html how-to-exercise-better.pdf
+          if git diff --cached --quiet; then
+            echo "产物无变化"
+          else
+            git commit -m "chore: 重新生成 index.html 与 PDF（正文更新后自动构建）"
+            git push
+          fi
